@@ -30,6 +30,31 @@ router.post("/", protectRoute, async (req, res) => {
         console.log("Error creating course", error);
         res.status(500).json({message: error.message});
     }
+});
+
+router.get("/", protectRoute, async(req, res) => {
+    try {
+        const page = req.query.page || 1;
+        const limit = req.query.limit || 5;
+        const skip = (page - 1) * limit;
+
+        const courses = await Course.find()
+        .sort({ createdAt: -1 }) // descending order (show latest posts at the top)
+        .skip(skip)
+        .limit(limit)
+        .populate("user", "username profileImage"); 
+        
+        const totalCourses = Course.countDocuments();
+        res.send({
+            courses,
+            currentPage: page,
+            totalCourses,
+            totalPages: Math.ceil(totalCourses / limit),
+        });
+    } catch (error) {
+        console.log("Error in getting all courses route", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
 })
 
 export default router;
