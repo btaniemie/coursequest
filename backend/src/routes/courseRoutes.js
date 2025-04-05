@@ -55,6 +55,45 @@ router.get("/", protectRoute, async(req, res) => {
         console.log("Error in getting all courses route", error);
         res.status(500).json({ message: "Internal server error" });
     }
+});
+
+// get the courses the authenticated user has recommended in the past
+router.get("/User", protectRoute, async(req, res) => {
+    try {
+        const courses = await Course.find({ user: req.user._id }).sort({ createdAt: -1 });
+        res.json(courses);
+    } catch (error) {
+        console.error("Error in getting past recommendations by authenticated user", error.message);
+        res.status(500).json({ message: "Internal server erorr"});
+    }
+})
+
+router.delete("/:id", protectRoute, async(req, res) => {
+    try {
+        const course = await Course.findById(req.params.id);
+        if (!course) return res.status(404).json({message: "Course not found"});
+
+        // check if user created this recommendation
+        if (course.user.toString() !== req.user._id.toString()) {
+            return res.status(401).json({message: "Unauthorized. You cannot delete a post you did not create"});
+        };
+
+        // delete user's avatar from cloudinary
+        if (course.image && course.image.includes("cloudinary")) {
+            try {
+                const publicId = course.image.split("/").pop().split(".")[0];
+                await cloudinary.uploader.destroy(publicId);
+            } catch (error) {
+                console.log("Error in deleting avatar from cloudinary", error);
+            }
+        }
+        
+        await course.deleteOne();
+        res.json({message: "Course recommendation deleted successfully"});
+    } catch (error) {
+        console.log("Error in deleting course recommendation", error);
+        res.status(500).json({message: "Internal server error"});
+    }
 })
 
 export default router;
