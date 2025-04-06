@@ -6,6 +6,8 @@ import { Ionicons } from "@expo/vector-icons";
 import COLORS from '../../constants/colors';
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthStore } from '../../store/authStore';
 
 
 export default function Create() {
@@ -17,13 +19,14 @@ export default function Create() {
     const [loading, setLoading] = useState(false);
 
     const router = useRouter();
+    const { token } = useAuthStore();
     const pickImage = async () => {
         try {
             if (Platform.OS !== "web") {
                 const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
                 if (status !== "granted") {
-                    Alert.alert("You need to grant us access to your library to upload an image");
+                    Alert.alert("Permission denied.","You need to grant us access to your library to upload an image");
                     return;
                 }
             }
@@ -53,13 +56,57 @@ export default function Create() {
             }
         } catch (error) {
             console.log("Error in uploading image", error.message);
-            Alert.alert("Error uploading image");
+            Alert.alert("Error","Error uploading image");
         }
 
     }
     const handleSubmit = async () => {
+        if (!title || !caption || !imageBase64 || !rating) {
+            Alert.alert("Error","Please fill in all fields");
+            return;
+        };
+
+        try {
+            setLoading(true);
+
+            // file type to jpeg
+            const uriParts = image.split(".");
+            const fileType = uriParts[uriParts.length - 1];
+            const imageType = fileType ? `image/${fileType.toLowerCase()}` : "image/jpeg";
+
+            const imageDataUrl = `data:${imageType};base64,${imageBase64}`;
+            
+            const response = await fetch("https://coursequest-backend.onrender.com/api/courses", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    title,
+                    caption,
+                    rating: rating.toString(),
+                    image: imageDataUrl,
+                }),
+            })
+            console.log("Raw response:", response);
+            const data = await response.json();
+            console.log("Parsed response:", data);
+            if (!response.ok) throw new Error(data.message || "Error submitting course recommendation");
+            Alert.alert("Success","Your course recommendation has been posted!");
+
+            // reset all states
+            setTitle("");
+            setCaption("");
+            setRating(3);
+            setImage(null);
+            setImageBase64(null);
+        } catch (error) {
+            console.log("Error in submitting recommendation", error.message);
+            Alert.alert("Error", "Cannot create recommendation");
+        }
         
-    }
+    };
     const renderRatingPicker = () => {
         const stars = [];
         for (let i = 1; i <= 5; i++) {
